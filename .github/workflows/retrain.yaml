@@ -17,7 +17,7 @@ jobs:
       - name: Set up Miniconda
         uses: conda-incubator/setup-miniconda@v3
         with:
-          environment-file: MLProject/conda.yaml
+          environment-file: Workflow-CI/MLProject/conda.yaml
           activate-environment: mlflow-env
 
       - name: Verify Conda Environment
@@ -27,6 +27,6 @@ jobs:
 
       - name: Run MLflow Project
         run: |
-          cd MLProject
+          cd Workflow-CI/MLProject
           echo "🚀 Running MLflow project..."
           mlflow run . -P data_path=melb_data_preprocessed.csv

@@ -1,0 +1,34 @@
+name: Retrain ML Model
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          environment-file: MLProject/conda.yaml
+          activate-environment: mlflow-env
+          auto-activate-base: false
+
+      - name: Install MLflow
+        shell: bash -l {0}
+        run: |
+          conda install -c conda-forge mlflow -y
+
+      - name: Run MLflow Project
+        shell: bash -l {0}
+        run: |
+          cd MLProject
+          echo "🚀 Running MLflow project..."
+          mlflow run . -P data_path=melb_data_preprocessed.csv

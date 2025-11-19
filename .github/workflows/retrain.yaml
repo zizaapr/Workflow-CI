@@ -2,11 +2,9 @@ name: Retrain ML Model
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   retrain:
@@ -25,6 +23,11 @@ jobs:
 
       - name: Install MLflow
         run: pip install --upgrade mlflow
+
+      - name: Set MLflow Conda Home
+        run: |
+          echo "Setting MLflow Conda Path..."
+          echo "MLFLOW_CONDA_HOME=$CONDA" >> $GITHUB_ENV
 
       - name: Run MLflow Project
         run: |

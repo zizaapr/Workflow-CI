@@ -33,4 +33,4 @@ jobs:
         run: |
           cd MLProject
           echo "🚀 Running MLflow project..."
-          mlflow run . -P data_path=boston_data_preprocessed.csv
+          mlflow run . -P data_path=.

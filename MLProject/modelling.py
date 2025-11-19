@@ -1,60 +1,111 @@
+# modelling.py
+# ====================================================
+# Training Model untuk Prediksi Harga Rumah + Tracking MLflow
+# ====================================================
+
+import pandas as pd
+import numpy as np
 import mlflow
 import mlflow.sklearn
-import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
+import argparse
+import os
+import warnings
 
-# ==========================
-# 1. Load data hasil preprocessing
-# ==========================
-df = pd.read_csv('boston_data_preprocessed.csv')
+warnings.filterwarnings("ignore", category=UserWarning)
 
-# Pisahkan fitur (X) dan target (y)
-target_column = 'MEDV'
-X = df.drop(columns=[target_column])
-y = df[target_column]
 
-# Bagi data menjadi train dan test (80:20)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
+# ====================================================
+# 1️. Load & Persiapan Data
+# ====================================================
+def load_and_prepare_data(base_path: str):
 
-print("Jumlah data latih:", X_train.shape[0])
-print("Jumlah data uji  :", X_test.shape[0])
+    # File dataset tunggal
+    data_path = os.path.join(base_path, "boston_data_preprocessed.csv")
 
-# ==========================
-# 2. Inisialisasi MLflow
-# ==========================
-mlflow.set_experiment("Boston_Housing_Price_Tracking")
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"❌ File tidak ditemukan: {data_path}")
 
-# Autolog semua parameter, metrik, model, artifact secara otomatis
-mlflow.sklearn.autolog()
+    data = pd.read_csv(data_path)
 
-# ==========================
-# 3. Jalankan experiment MLflow
-# ==========================
-with mlflow.start_run(run_name="RandomForest_Boston_Autolog"):
-    
-    # Inisialisasi dan latih model Random Forest
-    model = RandomForestRegressor(
-        n_estimators=100,
-        random_state=42
+    # Tentukan nama kolom target (ganti sesuai dataset lu)
+    target_column = "MEDV"
+
+    if target_column not in data.columns:
+        raise KeyError(f"❌ Kolom target '{target_column}' tidak ditemukan dalam dataset.")
+
+    # Drop baris tanpa target
+    data = data.dropna(subset=[target_column])
+
+    # Pisahkan fitur dan target
+    X = data.drop(columns=[target_column])
+    y = data[target_column]
+
+    # Encode kolom kategorikal jika ada
+    for col in X.columns:
+        if X[col].dtype == "object":
+            encoder = LabelEncoder()
+            X[col] = encoder.fit_transform(X[col].astype(str))
+
+    # Split 80:20
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
     )
-    model.fit(X_train, y_train)
-    
-    # Prediksi pada test set
-    preds = model.predict(X_test)
-    
-    # Hitung metrik evaluasi
-    mae = mean_absolute_error(y_test, preds)
-    mse = mean_squared_error(y_test, preds)
-    r2 = r2_score(y_test, preds)
-    
-    # Tampilkan hasil evaluasi
-    print("\n=== Evaluation Metrics ===")
-    print(f"Mean Absolute Error (MAE): {mae:.2f}")
-    print(f"Mean Squared Error (MSE): {mse:.2f}")
-    print(f"R² Score: {r2:.2f}")
 
-mlflow.end_run()
+    print(f"✅ Data siap digunakan. Train: {X_train.shape}, Test: {X_test.shape}")
+    return X_train, X_test, y_train, y_test
+
+
+# ====================================================
+# 2️. Training Model + MLflow Tracking
+# ====================================================
+def train_and_log_model(X_train, X_test, y_train, y_test):
+
+    with mlflow.start_run():
+        model = RandomForestRegressor(
+            n_estimators=100,
+            random_state=42,
+            n_jobs=-1
+        )
+        model.fit(X_train, y_train)
+
+        y_pred = model.predict(X_test)
+        rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+        r2 = r2_score(y_test, y_pred)
+
+        print("\n📊 HASIL EVALUASI MODEL")
+        print(f"RMSE: {rmse:.2f}")
+        print(f"R² Score: {r2:.4f}")
+
+        # Log tracking MLflow
+        mlflow.log_param("model_type", "RandomForestRegressor")
+        mlflow.log_param("n_estimators", 100)
+        mlflow.log_metric("rmse", rmse)
+        mlflow.log_metric("r2", r2)
+        mlflow.sklearn.log_model(model, "model")
+
+        print("\n✅ Model berhasil dicatat di MLflow!")
+
+
+# ====================================================
+# 3️. Entry Point (untuk MLflow CLI / GitHub Actions)
+# ====================================================
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train model for house price prediction")
+    parser.add_argument(
+        "--data_path",
+        type=str,
+        default=".",
+        help="Folder tempat file boston_data_preprocessed.csv berada",
+    )
+    args = parser.parse_args()
+
+    try:
+        X_train, X_test, y_train, y_test = load_and_prepare_data(args.data_path)
+        train_and_log_model(X_train, X_test, y_train, y_test)
+    except Exception as e:
+        print(f"\n❌ Terjadi kesalahan: {e}")
+        exit(1)
